@@ -1,0 +1,3 @@
+# Deployed into a Linux container; keep LF everywhere regardless of the
+# checkout platform, so a Windows edit does not rewrite every file.
+* text=auto eol=lf
