@@ -560,7 +560,7 @@ class Updater:
     def _cmd_update_now(self, state: State, command: cmd.Command) -> TickResult:
         release = Release.from_cache(state.cached_release)
         if release is None:
-            self._show(command, "⚠️ No release information cached yet — try again shortly.")
+            self._announce(command, "⚠️ No release information cached yet — try again shortly.")
             return TickResult(Outcome.ERROR, "no cached release")
 
         # Deliberately the opposite default from the tick loop: there an unknown
@@ -569,7 +569,7 @@ class Updater:
         # build they are running was itself replaced upstream.
         if release.fingerprint == state.last_installed_release:
             version = self.config.version_from_tag(release.tag) or release.tag
-            self._show(command, f"✅ Already on <b>{esc(version)}</b> — nothing to install.")
+            self._announce(command, f"✅ Already on <b>{esc(version)}</b> — nothing to install.")
             return TickResult(Outcome.UP_TO_DATE, release.tag)
 
         # A manual request overrides an earlier skip and any exhausted retry
@@ -579,7 +579,9 @@ class Updater:
         state.reset_attempts()
 
         version = self.config.version_from_tag(release.tag) or release.tag
-        self._show(command, f"⚡ <b>Installing Nuvio TV {esc(version)} now…</b>")
+        self._announce(
+            command, f"⚡ <b>Installing Nuvio TV {esc(version)} now…</b>", retire_buttons=True
+        )
 
         result = self._attempt_install(state, release)
         log.info("Manual update finished: %s -- %s", result.outcome, result.detail)
@@ -593,6 +595,23 @@ class Updater:
             if self.notifier.edit(command.message_id, text, keyboard):
                 return
         self.notifier.send(text, keyboard)
+
+    def _announce(self, command: cmd.Command, text: str, *, retire_buttons: bool = False) -> None:
+        """Reply with a fresh message instead of editing the pressed one.
+
+        Editing is right for menus: the keyboard updates in place under your
+        thumb. It is wrong for an install. A Telegram edit raises no
+        notification and leaves the message where it sits, so pressing "update
+        now" on a release announcement from earlier in the day looked like
+        nothing happened -- until the result landed a minute later and the two
+        appeared to arrive together.
+        """
+        if retire_buttons and command.message_id is not None:
+            # Retire the offer so the same release cannot be queued twice while
+            # this install runs. editMessageReplyMarkup leaves the text alone,
+            # so the original "released" announcement stays readable.
+            self.notifier.clear_keyboard(command.message_id)
+        self.notifier.send(text)
 
     def _window_code(self, state: State) -> str:
         """The schedule keyboard ticks whichever entry matches this."""

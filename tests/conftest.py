@@ -69,6 +69,7 @@ class FakeNotifier:
         self.messages: list[str] = []
         self.keyboards: list[object] = []
         self.edits: list[tuple[int, str]] = []
+        self.cleared: list[int] = []
         self.answers: list[tuple[str, str]] = []
         self._next_id = 100
 
@@ -85,6 +86,7 @@ class FakeNotifier:
         return True
 
     def clear_keyboard(self, message_id: int) -> bool:
+        self.cleared.append(message_id)
         return True
 
     def answer(self, callback_id: str, text: str = "", alert: bool = False) -> bool:

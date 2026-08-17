@@ -256,6 +256,37 @@ class TestUpdateNow:
         assert "Already on" in notifier.last()
         assert backend.installs == []
 
+    def test_progress_arrives_as_its_own_message(self, harness):
+        # A Telegram edit raises no notification and leaves the message where it
+        # sits, so editing the release announcement made the press look like a
+        # no-op until the result landed and the two seemed to arrive together.
+        backend = FakeBackend()
+        updater, notifier = self._pending(harness, backend=backend)
+        notifier.edits.clear()
+        notifier.messages.clear()
+
+        updater.handle_command(press(cmd.UPDATE_NOW, message_id=316))
+
+        assert notifier.edits == []  # nothing was rewritten in place
+        assert notifier.cleared == [316]  # the offer was retired instead
+        assert len(notifier.messages) == 2
+        assert "Installing" in notifier.messages[0]
+        assert "updated to 3.2.6" in notifier.messages[1]
+
+    def test_already_installed_reply_is_also_a_fresh_message(self, harness):
+        backend = FakeBackend()
+        updater, notifier = harness(
+            watcher=FakeWatcher(make_release("tvos-beta-3.2.5")), backend=backend
+        )
+        updater.tick()
+        notifier.edits.clear()
+
+        updater.handle_command(press(cmd.UPDATE_NOW))
+
+        assert notifier.edits == []
+        assert notifier.cleared == []  # nothing installed, so the buttons stay
+        assert "Already on" in notifier.last()
+
     def test_a_recut_of_the_installed_release_can_be_forced(self, harness):
         # The tick loop leaves an unknown installed fingerprint alone rather than
         # reinstalling. This button is the opposite default -- and the only way
